@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ocean King – Customer errors by department</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#F4F6F7;--surface:#FFFFFF;--ink:#1D2B36;--muted:#66788A;--line:#E1E7EB;--soft:#EEF2F4;
+  --accent:#2F6F7E;--warn:#B8552F;--ok:#4C7A3F;
+  --wh:#3D7F8C;--lg:#C9733E;--sa:#5A6FB0;--ac:#B08A2E;--qp:#8A63A8;--un:#9AA6AF;
+  color-scheme:light;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11191F;--surface:#18232B;--ink:#E3EAEE;--muted:#98A9B5;--line:#2A3842;--soft:#1F2C35;
+  --accent:#6BB3C0;--warn:#E58C63;--ok:#93C27F;
+  --wh:#6BB3C0;--lg:#E59A64;--sa:#8C9FE0;--ac:#D9B65A;--qp:#B693D3;--un:#8896A0;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11191F;--surface:#18232B;--ink:#E3EAEE;--muted:#98A9B5;--line:#2A3842;--soft:#1F2C35;
+  --accent:#6BB3C0;--warn:#E58C63;--ok:#93C27F;
+  --wh:#6BB3C0;--lg:#E59A64;--sa:#8C9FE0;--ac:#D9B65A;--qp:#B693D3;--un:#8896A0;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.55}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 20px 72px}
+h1,h2,h3{font-family:"Barlow Semi Condensed","Barlow",sans-serif;font-weight:600;margin:0;line-height:1.15}
+h1{font-size:clamp(1.8rem,4vw,2.4rem)}
+h2{font-size:1.45rem}
+h3{font-size:1.1rem}
+p{margin:0}
+.muted{color:var(--muted)}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;font-weight:500}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.55;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hidden{display:none!important}
+header.top{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:flex-end;margin-bottom:22px}
+header.top p{max-width:62ch;margin-top:4px}
+
+.drop{border:2px dashed var(--line);border-radius:14px;background:var(--surface);padding:56px 24px;text-align:center}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop p{max-width:56ch;margin:8px auto 20px}
+.err{color:var(--warn);font-weight:600;margin-top:14px}
+
+.filters{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:22px}
+.filters label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
+.filters select,.filters input{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 9px;min-width:130px;color:var(--ink)}
+.filters .info{margin-left:auto;font-size:.88rem;color:var(--muted);text-align:right}
+
+/* department cards */
+.depts{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;margin-bottom:26px}
+.dcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px;text-align:left;position:relative;overflow:hidden}
+.dcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.dcard[aria-pressed="true"]{border-color:var(--c);box-shadow:0 0 0 2px var(--c) inset}
+.dcard .name{font-weight:600;display:block}
+.dcard .n{font-family:"Barlow Semi Condensed",sans-serif;font-size:2.1rem;font-weight:600;line-height:1.1;display:block;margin-top:2px}
+.dcard .meta{font-size:.85rem;color:var(--muted);display:block}
+.share{height:6px;background:var(--soft);border-radius:3px;margin:8px 0 6px;overflow:hidden}
+.share i{display:block;height:100%;background:var(--c);border-radius:3px}
+
+/* detail */
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:22px}
+.detail-head{display:flex;gap:14px;align-items:center;margin-bottom:6px}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--c);flex:none}
+.story{max-width:75ch;font-size:1.05rem;margin:4px 0 20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:24px}
+.stat{background:var(--surface);padding:12px 14px}
+.stat b{font-family:"Barlow Semi Condensed",sans-serif;font-size:1.6rem;font-weight:600;display:block;line-height:1.15}
+.stat span{font-size:.86rem;color:var(--muted)}
+.stat.warn b{color:var(--warn)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:28px 32px}
+.block h3{margin-bottom:2px}
+.block .sub{font-size:.88rem;color:var(--muted);margin-bottom:12px}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:.93rem}
+.bline .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bline .val{font-variant-numeric:tabular-nums;color:var(--muted)}
+.bline .track{grid-column:1/-1;height:8px;background:var(--soft);border-radius:4px;overflow:hidden}
+.bline .track i{display:block;height:100%;border-radius:4px;background:var(--c,var(--accent))}
+.bline .split{display:flex;height:100%}
+.bline .split i{border-radius:0}
+.key{display:flex;gap:14px;font-size:.84rem;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
+.key span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;background:var(--k);vertical-align:-1px}
+.empty{color:var(--muted);font-size:.92rem}
+.chartbox{position:relative;height:230px}
+.notes{display:flex;flex-direction:column;gap:10px;max-height:300px;overflow:auto;padding-right:4px}
+.note{border-left:3px solid var(--line);padding:2px 0 2px 10px;font-size:.92rem}
+.note small{color:var(--muted);display:block}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{background:var(--soft);border-radius:999px;padding:2px 10px;font-size:.85rem}
+
+/* recs */
+.recs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:28px;margin-top:6px}
+.rec{border-left:4px solid var(--accent);padding:2px 0 2px 14px;margin-bottom:14px}
+.rec.hot{border-left-color:var(--warn)}
+.rec p{max-width:68ch;font-size:.95rem}
+.rec .tag{display:inline-block;font-size:.78rem;color:var(--muted);margin-top:4px}
+
+/* table */
+.tablecard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px}
+.ttools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:10px 0 12px}
+.ttools input{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px;min-width:260px;color:var(--ink)}
+.tablewrap{overflow:auto;max-height:620px;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600;position:sticky;top:0;white-space:nowrap;z-index:1}
+th button{background:none;border:0;padding:0;font-weight:600}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--soft) 45%,transparent)}
+td.long{min-width:240px;max-width:420px}
+td.open{color:var(--warn);font-weight:600}
+td select{border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:3px 6px;font-size:.85rem;color:var(--ink);border-left:4px solid var(--c)}
+.colpanel{position:relative}
+.colmenu{position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;width:min(340px,85vw);max-height:420px;overflow:auto;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.colmenu label{display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:.92rem}
+.colmenu .grp{font-size:.8rem;color:var(--muted);margin:10px 0 2px}
+.colmenu .row{justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}
+
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);max-width:620px;width:calc(100% - 32px);padding:24px}
+dialog::backdrop{background:rgba(10,20,28,.45)}
+.maprow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.maprow select,.maprow input{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;color:var(--ink)}
+.maprow input{flex:1;min-width:0}
+@media (max-width:620px){.filters .info{margin-left:0;text-align:left}.ttools input{min-width:0;width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Customer errors by department</h1>
+    <p class="muted">See which department each error comes from, what went wrong, which products and people are involved, and how it was closed.</p>
+  </div>
+  <div class="row hidden" id="topActions">
+    <button class="btn" id="btnRules" type="button">Department rules</button>
+    <button class="btn" id="btnNew" type="button">Upload another file</button>
+  </div>
+</header>
+
+<section id="uploadView">
+  <div class="drop" id="drop">
+    <h2>Drop the customer notes export here</h2>
+    <p class="muted">Excel (.xlsx, .xls) or CSV. The file is read in this browser only and is not uploaded or stored anywhere.</p>
+    <div class="row" style="justify-content:center">
+      <label class="btn primary" for="fileInput">Choose file</label>
+      <button class="btn" id="btnDemo" type="button">Try with demo data</button>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden">
+    <p class="err" id="uploadErr" role="alert"></p>
+  </div>
+</section>
+
+<section id="dashView" class="hidden">
+  <div class="filters" role="group" aria-label="Filters">
+    <label>From<input type="date" id="fFrom"></label>
+    <label>To<input type="date" id="fTo"></label>
+    <label>Error type<select id="fType"></select></label>
+    <label>Status<select id="fStatus"></select></label>
+    <button class="btn" id="btnClear" type="button">Clear filters</button>
+    <div class="info" id="fileInfo"></div>
+  </div>
+
+  <h2 style="margin-bottom:12px">Which department are the errors from?</h2>
+  <div class="depts" id="depts"></div>
+
+  <section class="detail" id="detail">
+    <div class="detail-head"><span class="dot" id="dDot"></span><h2 id="dTitle"></h2></div>
+    <p class="story" id="dStory"></p>
+    <div class="stats" id="dStats"></div>
+    <div class="cols">
+      <div class="block"><h3>Error types</h3><p class="sub">What kind of error, split by status.</p><div class="key" id="typeKey"></div><div class="bars" id="dTypes"></div></div>
+      <div class="block"><h3>Status</h3><p class="sub">Where these errors are now.</p><div class="bars" id="dStatus"></div></div>
+      <div class="block"><h3>Products involved</h3><p class="sub">Product code and description on the note.</p><div class="bars" id="dProducts"></div></div>
+      <div class="block"><h3>Sales inputter</h3><p class="sub">Who keyed the order. A high count can reflect volume, so compare with orders handled.</p><div class="bars" id="dInputters"></div></div>
+      <div class="block"><h3>Errors per week</h3><p class="sub">Is this getting better or worse?</p><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
+      <div class="block"><h3>How errors were closed</h3><p class="sub">Common words in the completion details, then the latest entries.</p><div class="chips" id="dChips"></div><div class="notes" id="dNotes"></div></div>
+    </div>
+  </section>
+
+  <section class="detail">
+    <h2>What can be done better</h2>
+    <p class="muted" id="recScope" style="margin:4px 0 16px"></p>
+    <div class="recs">
+      <div><h3 style="margin-bottom:10px">From the data</h3><div id="ruleRecs"></div></div>
+      <div>
+        <h3>AI recommendations</h3>
+        <p class="muted" id="aiNote" style="font-size:.88rem;margin:4px 0 12px;max-width:62ch">Sends a summary of counts for the department in view to Claude. Customer and staff names are replaced with labels such as “Customer A” first.</p>
+        <button class="btn primary" id="btnAI" type="button">Get AI recommendations</button>
+        <div id="aiOut" aria-live="polite" style="margin-top:14px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tablecard">
+    <h2>Error records</h2>
+    <div class="ttools">
+      <input type="search" id="tSearch" placeholder="Search product, customer, reference or details" aria-label="Search records">
+      <div class="row">
+        <span class="muted" id="tCount" style="font-size:.9rem"></span>
+        <div class="colpanel">
+          <button class="btn" id="btnCols" type="button" aria-expanded="false">Choose columns</button>
+          <div class="colmenu hidden" id="colMenu"></div>
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:.86rem;margin-bottom:8px">Change a record’s department in the table if the rule got it wrong. Your changes are kept in this browser.</p>
+    <div class="tablewrap"><table><thead id="tHead"></thead><tbody id="tBody"></tbody></table></div>
+  </section>
+</section>
+</div>
+
+<dialog id="dlg">
+  <h2>Department rules</h2>
+  <p class="muted" style="margin:6px 0 14px">A record is first matched on words in its completion details and notes. If no words match, it falls back to its error type.</p>
+  <h3 style="margin-bottom:4px">Words that point to a department</h3>
+  <div id="kwRows"></div>
+  <h3 style="margin:18px 0 4px">Fallback by error type</h3>
+  <div id="mapRows"></div>
+  <div class="row" style="margin-top:18px;justify-content:flex-end">
+    <button class="btn" id="btnRulesReset" type="button">Restore defaults</button>
+    <button class="btn primary" id="btnRulesDone" type="button">Done</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+"use strict";
+const DEPTS=["Warehouse","Logistics","Sales","Accounts","Quality & procurement","Unassigned"];
+const DVAR={"Warehouse":"--wh","Logistics":"--lg","Sales":"--sa","Accounts":"--ac","Quality & procurement":"--qp","Unassigned":"--un"};
+const DEF_TYPE={"Incorrect Order":"Warehouse","Missing Item":"Warehouse","Damaged Product":"Logistics","Unrecorded Product Returned":"Logistics","Cancelled Delivery":"Logistics","Price Issue":"Accounts","Product Quality Complaint":"Quality & procurement","Product Recall":"Quality & procurement"};
+const DEF_KW={
+  "Warehouse":"picker, picking, picked, mispick, mis-pick, warehouse, packed, packing, wrong product sent, short picked",
+  "Logistics":"driver, van, route, delivered, delivery, late, transport, not unloaded",
+  "Sales":"sales, keyed, input error, inputted, entered wrong, wrong code entered, order taken, telesales, rep",
+  "Accounts":"invoice, invoiced, credit note, pricing, price list, accounts",
+  "Quality & procurement":"supplier, quality, recall, shelf life, out of date, bbd, temperature"
+};
+const ADVICE={
+  "Incorrect Order":"Add a scan-to-pick check so the barcode must match the order line before packing, and read phone orders back before keying.",
+  "Missing Item":"Check each load against the picking list before the van leaves, and flag shorts so sales can warn the customer.",
+  "Damaged Product":"Review packing and van load plans for fragile and frozen lines, and ask drivers to photograph condition at handover.",
+  "Unrecorded Product Returned":"Have drivers log every return on the proof of delivery and reconcile returns against credits daily.",
+  "Cancelled Delivery":"Confirm delivery windows with customers the day before and always store the POD screenshot.",
+  "Price Issue":"Sync special prices to the sales system before orders are keyed and check invoices that carry agreed discounts.",
+  "Product Quality Complaint":"Tighten goods-in checks, rotate stock first-expiry-first-out and feed complaints into a supplier scorecard.",
+  "Product Recall":"Record batch and BBD at goods-in and picking so recalled stock can be traced to customers quickly."
+};
+const K_TYPE="ok-err-typemap-v2",K_KW="ok-err-kw-v2",K_OVR="ok-err-override-v2",K_COLS="ok-err-cols-v2";
+const store={get(k,d){try{const s=localStorage.getItem(k);return s?JSON.parse(s):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let typeMap=Object.assign({},DEF_TYPE,store.get(K_TYPE,{}));
+let kwMap=Object.assign({},DEF_KW,store.get(K_KW,{}));
+let overrides=store.get(K_OVR,{});
+let ALL=[],VIEW=[],DVIEW=[],RAWCOLS=[],fileName="",selDept="";
+let trendChart=null,sampleFn=null;
+const $=id=>document.getElementById(id);
+const cv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const dcol=d=>"var("+(DVAR[d]||"--un")+")";
+const norm=s=>String(s==null?"":s).replace(/\s+/g," ").trim();
+
+/* ---------- parse ---------- */
+function parseDate(v){
+  if(v==null||v==="")return null;
+  if(v instanceof Date)return isNaN(v)?null:v;
+  if(typeof v==="number"){const d=new Date(Math.round((v-25569)*864e5));return new Date(d.getTime()+d.getTimezoneOffset()*6e4)}
+  const s=String(v).trim();let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?/);
+  if(m){let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0))}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0));
+  return null;
+}
+function build(raw){
+  if(!raw.length)throw new Error("The file has no rows.");
+  const keys=Object.keys(raw[0]);RAWCOLS=keys.map(k=>({key:k,label:norm(k)}));
+  const H={};keys.forEach(k=>H[norm(k).toLowerCase()]=k);
+  const miss=["contact","type"].filter(n=>!(n in H));
+  if(miss.length)throw new Error("This file has no “"+miss.map(m=>m[0].toUpperCase()+m.slice(1)).join("”, “")+"” column. Export the customer notes report with its standard columns and try again.");
+  const g=(r,n)=>{const k=H[n];return k==null?"":r[k]};
+  const per=[];keys.forEach(k=>{const m=norm(k).match(/^#\s*(.+?)\s*#\s*-\s*(.+)$/);if(m)per.push({k,t:m[1].trim().toLowerCase(),f:m[2].trim().toLowerCase()})});
+  return raw.map((r,i)=>{
+    const type=norm(g(r,"type")).replace(/#/g,"").trim()||"Not recorded";
+    const pf={};per.forEach(p=>{const v=norm(r[p.k]);if(!v)return;if(p.t===type.toLowerCase()||!(p.f in pf))pf[p.f]=v});
+    const date=parseDate(g(r,"date")),done=parseDate(g(r,"completion date")),status=norm(g(r,"status"))||"Not recorded";
+    const rec={id:i,raw:r,contact:norm(g(r,"contact"))||"Not recorded",date,owner:norm(g(r,"note owner")),type,ref:norm(g(r,"reference")),status,
+      isDone:/complet|closed|resolved/i.test(status),done,details:norm(g(r,"completion details")),notes:norm(g(r,"notes")),subject:norm(g(r,"subject")),
+      product:pf["product code and description"]||norm(g(r,"product code and description"))||"",inputter:pf["sales inputter"]||"",
+      driver:pf["driver reporting"]||"",reason:norm(g(r,"reason for non conformance")),corrective:norm(g(r,"corrective action"))};
+    rec.key=rec.ref||("row"+i);return rec;
+  });
+}
+function classify(r){
+  if(overrides[r.key])return {d:overrides[r.key],by:"Changed by you"};
+  const text=(" "+[r.details,r.notes,r.reason].join(" ").toLowerCase()+" ");
+  let best=null,bestN=0;
+  DEPTS.forEach(d=>{const words=(kwMap[d]||"").split(",").map(w=>w.trim().toLowerCase()).filter(Boolean);
+    const n=words.reduce((a,w)=>a+(text.includes(w)?1:0),0);if(n>bestN){best=d;bestN=n}});
+  if(best)return {d:best,by:"Completion details"};
+  return {d:typeMap[r.type]||"Unassigned",by:"Error type rule"};
+}
+function reclassify(){ALL.forEach(r=>{const c=classify(r);r.dept=c.d;r.by=c.by})}
+
+function readFile(file){
+  $("uploadErr").textContent="";
+  if(typeof XLSX==="undefined"){$("uploadErr").textContent="The spreadsheet reader didn’t load. Check the internet connection and reload.";return}
+  const csv=/\.csv$/i.test(file.name),fr=new FileReader();
+  fr.onload=e=>{try{
+    const wb=csv?XLSX.read(e.target.result,{type:"string",raw:true}):XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:true});
+    ALL=build(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",raw:true}));fileName=file.name;start();
+  }catch(err){$("uploadErr").textContent=err.message||"This file couldn’t be read. Save it as .xlsx or .csv and try again."}};
+  csv?fr.readAsText(file):fr.readAsArrayBuffer(file);
+}
+
+/* ---------- demo ---------- */
+function demo(){
+  const types=Object.keys(DEF_TYPE),w=[28,18,13,10,6,11,11,3];
+  const custs=["Golden Dragon","Lotus Garden","Bamboo House","Jade Palace","Red Lantern","Silver Wok","Happy Valley","Orchid Kitchen","Mandarin Bay","Lucky Star"];
+  const prods=["10234 King prawns 1kg","20411 Squid tubes 2kg","30552 Jasmine rice 20kg","40118 Spring rolls x50","50276 Soy sauce 1.9L","60390 Beansprouts 5kg","70044 Salmon fillet 1kg","80612 Duck breast 2kg"];
+  const inp=["Inputter 1","Inputter 2","Inputter 3","Inputter 4"];
+  const det={"Incorrect Order":["Picker sent wrong pack size, credit issued","Wrong code entered by sales, replacement sent","Picked wrong product, collected next day"],"Missing Item":["Short picked, credit raised","Item not loaded on van, delivered next day"],"Damaged Product":["Driver reported crushed box, credit note","Defrosted on delivery, product returned"],"Unrecorded Product Returned":["Driver did not log return, credit raised late"],"Cancelled Delivery":["Customer closed, delivery rebooked"],"Price Issue":["Invoice at old price list, credit note sent","Special price not applied on invoice"],"Product Quality Complaint":["Supplier informed, quality issue logged","Short shelf life, replaced"],"Product Recall":["Supplier recall, stock quarantined"]};
+  const pick=a=>a[Math.floor(Math.random()*a.length)],tot=w.reduce((a,b)=>a+b);
+  const wp=()=>{let t=Math.random()*tot;for(let i=0;i<w.length;i++){t-=w[i];if(t<=0)return types[i]}return types[0]};
+  RAWCOLS=["Contact","Date","Type","Reference","Status","Completion details"].map(k=>({key:k,label:k}));
+  const now=Date.now();ALL=[];
+  for(let i=0;i<240;i++){const t=wp(),d=new Date(now-Math.random()*110*864e5),ok=Math.random()<.8,c=Math.random()<.3?pick(custs.slice(0,3)):pick(custs);
+    const r={id:i,contact:c,date:d,owner:"",type:t,ref:"I-"+(39500100+i),status:ok?"Completed":(Math.random()<.5?"Open":"In progress"),isDone:ok,
+      done:ok?new Date(d.getTime()+Math.random()*8*864e5):null,details:ok?pick(det[t]):"",notes:"",subject:"",product:pick(prods),
+      inputter:Math.random()<.4?inp[0]:pick(inp),driver:"",reason:"",corrective:"",key:"I-"+(39500100+i)};
+    r.raw={"Contact":c,"Date":d,"Type":"# "+t+" #","Reference":r.ref,"Status":r.status,"Completion details":r.details};ALL.push(r)}
+  fileName="Demo data (made up)";start();
+}
+
+/* ---------- start / filters ---------- */
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function opt(s,v,t){const o=document.createElement("option");o.value=v;o.textContent=t;s.appendChild(o)}
+function start(){
+  reclassify();selDept="";
+  $("uploadView").classList.add("hidden");$("dashView").classList.remove("hidden");$("topActions").classList.remove("hidden");
+  resetDates();
+  $("fType").innerHTML="";opt($("fType"),"","All types");[...new Set(ALL.map(r=>r.type))].sort().forEach(t=>opt($("fType"),t,t));
+  $("fStatus").innerHTML="";opt($("fStatus"),"","All");opt($("fStatus"),"__open","Not completed");[...new Set(ALL.map(r=>r.status))].sort().forEach(s=>opt($("fStatus"),s,s));
+  $("fileInfo").textContent=fileName+", "+ALL.length+" records";$("aiOut").innerHTML="";
+  initCols();render();
+}
+function resetDates(){const d=ALL.map(r=>r.date).filter(Boolean).sort((a,b)=>a-b);$("fFrom").value=d.length?iso(d[0]):"";$("fTo").value=d.length?iso(d[d.length-1]):""}
+function filter(){
+  const f=$("fFrom").value?new Date($("fFrom").value+"T00:00"):null,t=$("fTo").value?new Date($("fTo").value+"T23:59:59"):null,ty=$("fType").value,st=$("fStatus").value;
+  VIEW=ALL.filter(r=>!(f&&r.date&&r.date<f)&&!(t&&r.date&&r.date>t)&&!(ty&&r.type!==ty)&&!(st==="__open"&&r.isDone)&&!(st&&st!=="__open"&&r.status!==st));
+  DVIEW=selDept?VIEW.filter(r=>r.dept===selDept):VIEW;
+}
+
+/* ---------- helpers ---------- */
+const countBy=(rows,fn)=>{const m=new Map();rows.forEach(r=>{const k=fn(r);if(!k)return;m.set(k,(m.get(k)||0)+1)});return [...m].sort((a,b)=>b[1]-a[1])};
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),h=s.length>>1;return s.length%2?s[h]:(s[h-1]+s[h])/2};
+const daysOpen=r=>r.date?Math.max(0,((r.done||new Date())-r.date)/864e5):null;
+const fmt=d=>d?d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"";
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+
+function bars(box,list,opts){
+  box.innerHTML="";opts=opts||{};
+  if(!list.length){box.appendChild(el("p","empty",opts.empty||"Nothing recorded on these notes."));return}
+  const max=Math.max(...list.map(x=>x.total!=null?x.total:x[1]));
+  list.slice(0,opts.limit||8).forEach(x=>{
+    const name=x.label||x[0],n=x.total!=null?x.total:x[1];
+    const line=el("div","bline"),l=el("span","lbl",name);l.title=name;
+    const v=el("span","val",n+(opts.of?" ("+pct(n,opts.of)+"%)":""));
+    const tr=el("div","track");
+    if(x.parts){const sp=el("div","split");sp.style.width=(n/max*100)+"%";x.parts.forEach(p=>{if(!p.n)return;const i=el("i");i.style.width=(p.n/n*100)+"%";i.style.background=p.c;sp.appendChild(i)});tr.appendChild(sp)}
+    else{const i=el("i");i.style.width=(n/max*100)+"%";if(opts.color)i.style.background=opts.color;tr.appendChild(i)}
+    line.append(l,v,tr);box.appendChild(line);
+  });
+}
+
+/* ---------- render ---------- */
+function render(){filter();renderDepts();renderDetail();renderRecs();renderTable()}
+
+function renderDepts(){
+  const box=$("depts");box.innerHTML="";const total=VIEW.length;
+  const card=(d,n,lines)=>{const b=el("button","dcard");b.type="button";b.style.setProperty("--c",d?dcol(d):"var(--ink)");
+    b.setAttribute("aria-pressed",String(selDept===(d||"")));
+    b.append(el("span","name",d||"All departments"),el("span","n",n));
+    const sh=el("div","share"),i=el("i");i.style.width=(d?pct(n,total):100)+"%";sh.appendChild(i);b.appendChild(sh);
+    lines.forEach(t=>b.appendChild(el("span","meta",t)));
+    b.onclick=()=>{selDept=d||"";render();$("detail").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth",block:"start"})};
+    box.appendChild(b)};
+  card("",total,[VIEW.filter(r=>!r.isDone).length+" not completed","Select a department for detail"]);
+  DEPTS.forEach(d=>{const rows=VIEW.filter(r=>r.dept===d);if(!rows.length&&d==="Unassigned")return;
+    const top=countBy(rows,r=>r.type)[0];
+    card(d,rows.length,[pct(rows.length,total)+"% of errors, "+rows.filter(r=>!r.isDone).length+" open",top?"Mostly "+top[0].toLowerCase():"No errors"])});
+}
+
+function renderDetail(){
+  const rows=DVIEW,d=selDept,n=rows.length;
+  $("detail").style.setProperty("--c",d?dcol(d):"var(--ink)");
+  $("dTitle").textContent=(d||"All departments")+": "+n+" error"+(n===1?"":"s");
+  const open=rows.filter(r=>!r.isDone),types=countBy(rows,r=>r.type),prods=countBy(rows,r=>r.product),inps=countBy(rows,r=>r.inputter);
+  const closeD=rows.filter(r=>r.isDone&&r.done&&r.date).map(r=>(r.done-r.date)/864e5).filter(x=>x>=0),md=median(closeD);
+  if(!n){$("dStory").textContent="No errors match these filters. Widen the dates or clear the filters.";}
+  else{
+    let s=(d?d+" accounts for "+pct(n,VIEW.length)+"% of errors in this period. ":"")+
+      "The most common error is "+types[0][0].toLowerCase()+" ("+types[0][1]+", "+pct(types[0][1],n)+"%). ";
+    if(prods[0]&&prods[0][1]>1)s+="The product that comes up most is "+prods[0][0]+" ("+prods[0][1]+" times). ";
+    s+=open.length?open.length+" "+(open.length===1?"is":"are")+" not yet completed":"All are completed";
+    s+=md!=null?", and completed errors took a median of "+md.toFixed(1)+" days to close.":".";
+    $("dStory").textContent=s;
+  }
+  const byDetails=rows.filter(r=>r.by==="Completion details").length;
+  const stats=[
+    [n,"errors"],[open.length,"not completed",open.length>0&&pct(open.length,n)>20],
+    [rows.filter(r=>!r.isDone&&daysOpen(r)>7).length,"open over 7 days",rows.some(r=>!r.isDone&&daysOpen(r)>7)],
+    [md==null?"–":md.toFixed(1),"median days to close"],
+    [new Set(rows.map(r=>r.contact)).size,"customers affected"],
+    [pct(rows.filter(r=>r.details).length,n)+"%","with completion details",n&&pct(rows.filter(r=>r.details).length,n)<60],
+    [pct(byDetails,n)+"%","department found from details"]];
+  const sb=$("dStats");sb.innerHTML="";stats.forEach(([v,l,w])=>{const s=el("div","stat"+(w?" warn":""));s.append(el("b",null,v),el("span",null,l));sb.appendChild(s)});
+
+  const ok=cv("--accent"),warn=cv("--warn");
+  $("typeKey").innerHTML="";[["Completed",ok],["Not completed",warn]].forEach(([t,c])=>{const s=el("span",null,t);s.style.setProperty("--k",c);$("typeKey").appendChild(s)});
+  bars($("dTypes"),types.map(([t,c])=>{const o=rows.filter(r=>r.type===t&&!r.isDone).length;return {label:t,total:c,parts:[{n:c-o,c:ok},{n:o,c:warn}]}}),{limit:10});
+  bars($("dStatus"),countBy(rows,r=>r.status),{of:n,color:d?dcol(d):cv("--accent")});
+  bars($("dProducts"),prods,{limit:10,color:d?dcol(d):cv("--accent"),empty:"No product code recorded on these notes."});
+  bars($("dInputters"),inps,{of:inps.reduce((a,b)=>a+b[1],0),color:cv("--sa"),empty:"No sales inputter recorded on these notes."});
+  renderTrend(rows);renderNotes(rows);
+}
+function weekStart(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
+function renderTrend(rows){
+  if(typeof Chart==="undefined")return;
+  const m=new Map();rows.forEach(r=>{if(!r.date)return;const k=iso(weekStart(r.date));m.set(k,(m.get(k)||0)+1)});
+  const ks=[...m.keys()].sort();
+  if(ks.length){const all=[];for(let t=new Date(ks[0]+"T00:00");iso(t)<=ks[ks.length-1];t.setDate(t.getDate()+7))all.push(iso(t));ks.length=0;ks.push(...all)}
+  const c=selDept?cv(DVAR[selDept]):cv("--accent"),mut=cv("--muted"),line=cv("--line");
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart($("cTrend"),{type:"line",data:{labels:ks.map(k=>new Date(k+"T00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})),
+    datasets:[{label:"Errors",data:ks.map(k=>m.get(k)||0),borderColor:c,backgroundColor:c+"22",fill:true,tension:.3,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:mut,maxRotation:0,autoSkip:true,font:{family:"Barlow"}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:mut,precision:0,font:{family:"Barlow"}},grid:{color:line}}}}});
+}
+const STOP=new Set("the a an and or to of for on in at by with was were is be been as it this that from not no has had have they we he she customer product products order orders credit issued raised sent".split(" "));
+function renderNotes(rows){
+  const words=new Map();rows.forEach(r=>{const t=r.details.toLowerCase().replace(/[^a-z0-9\s-]/g," ").split(/\s+/).filter(w=>w.length>2&&!STOP.has(w));
+    new Set(t).forEach(w=>words.set(w,(words.get(w)||0)+1))});
+  const ch=$("dChips");ch.innerHTML="";[...words].sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([w,c])=>ch.appendChild(el("span","chip",w+" "+c)));
+  const box=$("dNotes");box.innerHTML="";
+  const withD=rows.filter(r=>r.details).sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,12);
+  if(!withD.length){box.appendChild(el("p","empty","No completion details recorded on these notes."));return}
+  withD.forEach(r=>{const n=el("div","note");n.style.borderLeftColor=dcol(r.dept);n.appendChild(el("small",null,fmt(r.date)+", "+r.type+", "+r.contact));n.appendChild(document.createTextNode(r.details));box.appendChild(n)});
+}
+
+/* ---------- recommendations ---------- */
+function renderRecs(){
+  const rows=DVIEW,n=rows.length,out=$("ruleRecs");out.innerHTML="";
+  $("recScope").textContent="For "+(selDept||"all departments")+", based on the filters above.";
+  if(!n){out.appendChild(el("p","empty","No errors in view."));return}
+  const recs=[],types=countBy(rows,r=>r.type);
+  types.slice(0,2).forEach(([t,c],i)=>recs.push({hot:i===0,t:t+" is "+pct(c,n)+"% of errors here",b:ADVICE[t]||"Agree one change with the team that owns this error and trial it for a month.",tag:"Error type"}));
+  const prods=countBy(rows,r=>r.product).filter(p=>p[1]>=3).slice(0,3);
+  if(prods.length)recs.push({t:"Repeat products",b:prods.map(p=>p[0]+" ("+p[1]+")").join(", ")+". Check the bin location, labelling and similar-looking lines next to these products.",tag:"Products"});
+  const inps=countBy(rows,r=>r.inputter),it=inps.reduce((a,b)=>a+b[1],0);
+  if(inps.length>=2&&it>=8&&inps[0][1]/it>.35)recs.push({t:"One sales inputter is on "+pct(inps[0][1],it)+"% of these notes",b:"Compare against the number of orders each person keys before drawing conclusions. If the rate is still high, add a second check or a short refresher.",tag:"People"});
+  const od=rows.filter(r=>!r.isDone&&daysOpen(r)>7).length;
+  if(od)recs.push({hot:true,t:od+" error"+(od>1?"s":"")+" open for over a week",b:"Set a five working day target to close notes and review open ones at the weekly operations meeting.",tag:"Follow-up"});
+  const noD=rows.filter(r=>r.isDone&&!r.details).length,dn=rows.filter(r=>r.isDone).length;
+  if(dn&&pct(noD,dn)>25)recs.push({t:pct(noD,dn)+"% of completed notes have no completion details",b:"Make completion details required, including what caused the error, so the department can be identified and the fix tracked.",tag:"Data quality"});
+  const dts=rows.map(r=>r.date).filter(Boolean);
+  if(dts.length){const e=Math.max(...dts),a=e-28*864e5,b=e-56*864e5,l=rows.filter(r=>r.date>a).length,p=rows.filter(r=>r.date>b&&r.date<=a).length;
+    if(p>=5){const c=Math.round((l-p)/p*100);if(Math.abs(c)>=15)recs.push({hot:c>0,t:"Errors "+(c>0?"up ":"down ")+Math.abs(c)+"% in the last four weeks",b:c>0?"Look at what changed recently, such as new staff, new products or a route change.":"Note what changed so the improvement can be written into the SOP.",tag:"Trend"})}}
+  recs.forEach(r=>{const d=el("div","rec"+(r.hot?" hot":""));d.append(el("h3",null,r.t),el("p",null,r.b),el("span","tag",r.tag));out.appendChild(d)});
+}
+function anon(list,p){const m={};list.forEach((x,i)=>m[x[0]]=p+" "+(i<26?String.fromCharCode(65+i):i+1));return m}
+async function runAI(){
+  if(!sampleFn)return;const out=$("aiOut"),btn=$("btnAI"),rows=DVIEW;btn.disabled=true;out.innerHTML="";out.appendChild(el("p","muted","Thinking…"));
+  const cu=countBy(rows,r=>r.contact).slice(0,8),cm=anon(cu,"Customer"),ip=countBy(rows,r=>r.inputter).slice(0,6),im=anon(ip,"Sales inputter");
+  const words=new Map();rows.forEach(r=>r.details.toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(w=>w.length>3&&!STOP.has(w)).forEach(w=>words.set(w,(words.get(w)||0)+1)));
+  const data={department:selDept||"All departments",total:rows.length,share_of_all:pct(rows.length,VIEW.length)+"%",
+    by_department:Object.fromEntries(countBy(VIEW,r=>r.dept)),by_type:Object.fromEntries(countBy(rows,r=>r.type)),by_status:Object.fromEntries(countBy(rows,r=>r.status)),
+    open_over_7_days:rows.filter(r=>!r.isDone&&daysOpen(r)>7).length,top_products:Object.fromEntries(countBy(rows,r=>r.product).slice(0,10)),
+    sales_inputters:Object.fromEntries(ip.map(([k,v])=>[im[k],v])),top_customers:Object.fromEntries(cu.map(([k,v])=>[cm[k],v])),
+    completion_detail_keywords:Object.fromEntries([...words].sort((a,b)=>b[1]-a[1]).slice(0,25))};
+  const prompt="You advise Ocean King, a UK foodservice wholesaler of chilled, frozen and ambient food delivering to restaurants by van, on reducing customer errors. Below is a JSON summary of customer error notes for one department (names anonymised). Give practical, specific recommendations that cite the numbers. Do not blame individuals; frame people patterns as things to check against workload. Prefer low-cost process changes first, then digital fixes such as barcode scanning or system checks.\nReply ONLY with JSON: {\"summary\":\"2-3 sentences\",\"actions\":[{\"action\":\"\",\"why\":\"\",\"owner\":\"department or role\",\"effort\":\"low|medium|high\",\"impact\":\"low|medium|high\"}]} with 4 to 6 actions ordered by impact.\n\nDATA:\n"+JSON.stringify(data);
+  try{const res=await sampleFn.json(prompt,{modelTier:"default"});out.innerHTML="";
+    if(res&&res.summary)out.appendChild(el("p",null,res.summary)).style.margin="0 0 14px";
+    (res&&Array.isArray(res.actions)?res.actions:[]).forEach(a=>{const d=el("div","rec"+(a.impact==="high"?" hot":""));d.append(el("h3",null,a.action||""),el("p",null,a.why||""),el("span","tag",[a.owner,"effort "+(a.effort||"?"),"impact "+(a.impact||"?")].filter(Boolean).join(", ")));out.appendChild(d)});
+    if(!out.children.length)out.appendChild(el("p","muted","No recommendations came back. Try again."));
+  }catch(e){out.innerHTML="";out.appendChild(el("p","muted",e&&e.code==="not_granted"?"AI recommendations need permission to use Claude. Allow it from this page’s permissions.":e&&e.code==="rate_limited"?"Too many requests just now. Wait a minute and try again.":"The AI recommendations couldn’t be generated. Try again."))}
+  finally{btn.disabled=false}
+}
+(async()=>{try{if(window.claude&&claude.use)sampleFn=await claude.use("sample")}catch(e){}
+  if(!sampleFn){$("btnAI").classList.add("hidden");$("aiNote").textContent="AI recommendations work when this page is opened in Claude. The recommendations from the data work everywhere."}})();
+
+/* ---------- table + columns ---------- */
+const DERIVED=[
+  {id:"d:date",label:"Date",get:r=>fmt(r.date),sort:r=>r.date||0},
+  {id:"d:contact",label:"Customer",get:r=>r.contact},
+  {id:"d:dept",label:"Department",get:r=>r.dept},
+  {id:"d:by",label:"Department found from",get:r=>r.by},
+  {id:"d:type",label:"Error type",get:r=>r.type},
+  {id:"d:status",label:"Status",get:r=>r.status},
+  {id:"d:product",label:"Product code and description",get:r=>r.product},
+  {id:"d:inputter",label:"Sales inputter",get:r=>r.inputter},
+  {id:"d:details",label:"Completion details",get:r=>r.details,long:true},
+  {id:"d:days",label:"Days open",get:r=>{const d=daysOpen(r);return d==null?"":Math.round(d)},sort:r=>daysOpen(r)||0},
+  {id:"d:ref",label:"Reference",get:r=>r.ref},
+  {id:"d:driver",label:"Driver reporting",get:r=>r.driver}
+];
+const DEF_COLS=["d:date","d:contact","d:dept","d:type","d:status","d:product","d:inputter","d:details","d:days"];
+let visCols=[],sortBy={id:"d:date",dir:-1};
+function allCols(){
+  const covered=/^(contact|date|type|status|reference|completion details)$/i;
+  return DERIVED.concat(RAWCOLS.filter(c=>!covered.test(c.label)&&c.label).map(c=>({id:"r:"+c.label,label:c.label,raw:c.key,long:/notes|details|action|subject|description/i.test(c.label),
+    get:r=>{const v=r.raw?r.raw[c.key]:"";return v instanceof Date?fmt(v):norm(v)}})));
+}
+function initCols(){
+  const ids=allCols().map(c=>c.id);
+  visCols=(store.get(K_COLS,null)||DEF_COLS).filter(id=>ids.includes(id));
+  if(!visCols.length)visCols=DEF_COLS.slice();buildColMenu();
+}
+function buildColMenu(){
+  const m=$("colMenu");m.innerHTML="";const top=el("div","row");
+  const all=el("button","btn",null);all.type="button";all.textContent="Reset to default";all.onclick=()=>{visCols=DEF_COLS.slice();store.set(K_COLS,visCols);buildColMenu();renderTable()};
+  top.append(el("strong",null,"Show columns"),all);m.appendChild(top);
+  const cols=allCols();
+  [["Main",cols.filter(c=>c.id.startsWith("d:"))],["Other columns in the file",cols.filter(c=>c.id.startsWith("r:"))]].forEach(([g,list])=>{
+    if(!list.length)return;m.appendChild(el("div","grp",g));
+    list.forEach(c=>{const l=el("label"),cb=document.createElement("input");cb.type="checkbox";cb.checked=visCols.includes(c.id);
+      cb.onchange=()=>{if(cb.checked){const order=cols.map(x=>x.id);visCols.push(c.id);visCols.sort((a,b)=>order.indexOf(a)-order.indexOf(b))}else visCols=visCols.filter(x=>x!==c.id);store.set(K_COLS,visCols);renderTable()};
+      l.append(cb,document.createTextNode(c.label));m.appendChild(l)});
+  });
+}
+function renderTable(){
+  const cols=allCols().filter(c=>visCols.includes(c.id)),q=$("tSearch").value.trim().toLowerCase();
+  let rows=DVIEW.filter(r=>!q||[r.contact,r.ref,r.product,r.details,r.notes,r.type,r.inputter].join(" ").toLowerCase().includes(q));
+  const sc=allCols().find(c=>c.id===sortBy.id)||DERIVED[0],key=sc.sort||(r=>String(sc.get(r)).toLowerCase());
+  rows.sort((a,b)=>{const x=key(a),y=key(b);return (x>y?1:x<y?-1:0)*sortBy.dir});
+  $("tCount").textContent=rows.length+" record"+(rows.length===1?"":"s")+(rows.length>600?", first 600 shown":"");
+  const hr=document.createElement("tr");
+  cols.forEach(c=>{const th=el("th"),b=el("button",null,c.label+(sortBy.id===c.id?(sortBy.dir>0?" ▲":" ▼"):""));b.type="button";
+    th.setAttribute("aria-sort",sortBy.id===c.id?(sortBy.dir>0?"ascending":"descending"):"none");
+    b.onclick=()=>{sortBy=sortBy.id===c.id?{id:c.id,dir:-sortBy.dir}:{id:c.id,dir:1};renderTable()};th.appendChild(b);hr.appendChild(th)});
+  $("tHead").innerHTML="";$("tHead").appendChild(hr);
+  const tb=$("tBody");tb.innerHTML="";const frag=document.createDocumentFragment();
+  rows.slice(0,600).forEach(r=>{const tr=document.createElement("tr");
+    cols.forEach(c=>{const td=el("td");
+      if(c.id==="d:dept"){const s=document.createElement("select");s.setAttribute("aria-label","Department for "+(r.ref||"record"));s.style.setProperty("--c",dcol(r.dept));
+        DEPTS.forEach(d=>opt(s,d,d));s.value=r.dept;s.onchange=()=>{overrides[r.key]=s.value;store.set(K_OVR,overrides);reclassify();render()};td.appendChild(s)}
+      else{td.textContent=c.get(r);if(c.long)td.className="long";if(c.id==="d:status"&&!r.isDone)td.className="open"}
+      tr.appendChild(td)});
+    frag.appendChild(tr)});
+  tb.appendChild(frag);
+}
+
+/* ---------- rules dialog ---------- */
+function openRules(){
+  const kw=$("kwRows");kw.innerHTML="";
+  DEPTS.filter(d=>d!=="Unassigned").forEach(d=>{const r=el("div","maprow"),l=el("label",null,d),i=document.createElement("input");const id="kw-"+d.replace(/\W/g,"");i.id=id;l.htmlFor=id;l.style.minWidth="150px";
+    i.value=kwMap[d]||"";i.onchange=()=>{kwMap[d]=i.value;store.set(K_KW,kwMap);reclassify();render()};r.append(l,i);kw.appendChild(r)});
+  const mp=$("mapRows");mp.innerHTML="";
+  [...new Set([...Object.keys(DEF_TYPE),...ALL.map(r=>r.type)])].forEach(t=>{const r=el("div","maprow"),l=el("label",null,t),s=document.createElement("select");const id="tm-"+t.replace(/\W/g,"");s.id=id;l.htmlFor=id;
+    DEPTS.forEach(d=>opt(s,d,d));s.value=typeMap[t]||"Unassigned";s.onchange=()=>{typeMap[t]=s.value;store.set(K_TYPE,typeMap);reclassify();render()};r.append(l,s);mp.appendChild(r)});
+  $("dlg").showModal();
+}
+
+/* ---------- wiring ---------- */
+const drop=$("drop");
+["dragenter","dragover"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("over")}));
+["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("over")}));
+drop.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)readFile(f)});
+$("fileInput").onchange=e=>{const f=e.target.files[0];if(f)readFile(f);e.target.value=""};
+$("btnDemo").onclick=demo;
+$("btnNew").onclick=()=>{$("dashView").classList.add("hidden");$("uploadView").classList.remove("hidden");$("topActions").classList.add("hidden")};
+$("btnRules").onclick=openRules;$("btnRulesDone").onclick=()=>$("dlg").close();
+$("btnRulesReset").onclick=()=>{typeMap=Object.assign({},DEF_TYPE);kwMap=Object.assign({},DEF_KW);store.set(K_TYPE,{});store.set(K_KW,{});reclassify();openRules();render()};
+["fFrom","fTo","fType","fStatus"].forEach(id=>$(id).addEventListener("change",render));
+$("btnClear").onclick=()=>{$("fType").value="";$("fStatus").value="";resetDates();selDept="";render()};
+$("tSearch").addEventListener("input",renderTable);
+$("btnAI").onclick=runAI;
+$("btnCols").onclick=e=>{e.stopPropagation();const m=$("colMenu"),h=m.classList.toggle("hidden");$("btnCols").setAttribute("aria-expanded",String(!h))};
+document.addEventListener("click",e=>{if(!e.target.closest(".colpanel")){$("colMenu").classList.add("hidden");$("btnCols").setAttribute("aria-expanded","false")}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("colMenu").classList.add("hidden");$("btnCols").setAttribute("aria-expanded","false")}});
+if(window.matchMedia)matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{if(ALL.length)render()});
+})();
+</script>
+</body>
+</html>
